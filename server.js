@@ -11,6 +11,6 @@ app.get('/', function(req, res) {
 });
 app.use('/static', express.static('static'));
 
-var port = process.env.PORT || 3000
+var port = 8080
 app.listen(port);
 console.log("App started on port: " + port);
