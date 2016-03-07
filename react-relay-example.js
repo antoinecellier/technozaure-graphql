@@ -26,7 +26,6 @@ const componentContainer = Relay.createContainer(App, {
 /* Déclaration du composant */
 class App extends React.Component {
   render() {
-    console.log(this.props.appuisVelos);
     return (
       <div>
         <ul>
