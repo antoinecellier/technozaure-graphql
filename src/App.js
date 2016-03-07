@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import GraphiQL from 'graphiql';
 import fetch from 'isomorphic-fetch';
-import Schema from './schema.js';
 import { graphql } from 'graphql';
 
 GraphiQL.Logo = class Logo extends Component {

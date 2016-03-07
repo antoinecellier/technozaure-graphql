@@ -16,6 +16,12 @@ import {
   GraphQLInterfaceType
 } from 'graphql';
 
+const mongo = require('promised-mongo');
+const db = mongo('mongodb://localhost/mydb');
+const postsCollection = db.collection('posts');
+const firebase = require("firebase");
+const firebaseRef = new Firebase("https://tz-graphql.firebaseio.com/");
+
 const Category = new GraphQLEnumType({
   name: "Category",
   description: "A Category of the blog",
@@ -114,7 +120,11 @@ const Post = new GraphQLObjectType({
     author: {
       type: Author,
       resolve: function({author}) {
-        return AuthorsMap[author];
+        return new Promise(function(resolve, reject) {
+          firebaseRef.child("authors/"+author).once("value", function(data) {
+            resolve(data.val());
+          })
+        });
       }
     }
   })
@@ -131,11 +141,7 @@ const Query = new GraphQLObjectType({
         category: {type: Category}
       },
       resolve: function(source, {category}) {
-        if(category) {
-          return _.filter(PostsList, post => post.category === category);
-        } else {
-          return PostsList;
-        }
+        return postsCollection.find().toArray();
       }
     },
 

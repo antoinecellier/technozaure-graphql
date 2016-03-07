@@ -1,15 +1,13 @@
-var express = require('express');
-var compression = require('compression');
-var fs = require('fs');
-var app = express();
+const express = require('express');
+const compression = require('compression');
+const fs = require('fs');
+const app = express();
 
 import Schema from './src/schema.js';
 import { graphql } from 'graphql';
 
-var bodyParser = require('body-parser');
-
-
-var indexFile = fs.readFileSync('index.html', 'utf8');
+const bodyParser = require('body-parser');
+const indexFile = fs.readFileSync('index.html', 'utf8');
 
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: false }))
