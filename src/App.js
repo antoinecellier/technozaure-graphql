@@ -24,7 +24,20 @@ export default class App extends Component {
     try {
       queryVariables = JSON.parse(variables);
     } catch(ex) {}
-    return graphql(Schema, query, null, queryVariables);
+
+    return fetch('/graphql', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query,
+        queryVariables
+      })
+    }).then(function(response) {
+      return response.json();
+    })
   }
 
   render() {

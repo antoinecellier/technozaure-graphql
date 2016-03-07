@@ -4,3 +4,8 @@ This is a GraphQL Schema for a Blog App where you can play and get familiar with
 
 You can follow lessons at [Learn GraphQL](https://learngraphql.com) with this app.
 
+## Start
+```bash
+babel-node server.js --presets "es2015"
+npm start
+```
