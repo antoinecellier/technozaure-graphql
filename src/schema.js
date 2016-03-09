@@ -1,9 +1,4 @@
-import * as _ from 'underscore';
-
-import PostsList from './data/posts';
-import AuthorsMap from './data/authors';
-import {CommentList, ReplyList} from './data/comments';
-
+const _ = require('lodash');
 import {
   GraphQLList,
   GraphQLObjectType,
@@ -20,18 +15,8 @@ const mongo = require('promised-mongo');
 const db = mongo('mongodb://localhost/mydb');
 const postsCollection = db.collection('posts');
 const firebase = require("firebase");
-const firebaseRef = new Firebase("https://tz-graphql.firebaseio.com/");
+const authorsRef = new firebase("https://tz-graphql.firebaseio.com/").child("authors");
 
-const Category = new GraphQLEnumType({
-  name: "Category",
-  description: "A Category of the blog",
-  values: {
-    METEOR: {value: "meteor"},
-    PRODUCT: {value: "product"},
-    USER_STORY: {value: "user-story"},
-    OTHER: {value: 'other'}
-  }
-});
 
 const Author = new GraphQLObjectType({
   name: "Author",
@@ -43,55 +28,12 @@ const Author = new GraphQLObjectType({
   })
 });
 
-const HasAuthor = new GraphQLInterfaceType({
-  name: "HasAuthor",
-  description: "This type has an author",
-  fields: () => ({
-    author: {type: Author}
-  }),
-  resolveType: (obj) => {
-    if(obj.title) {
-      return Post;
-    } else if(obj.replies) {
-      return Comment;
-    } else {
-      return null;
-    }
-  }
-});
-
-const Comment = new GraphQLObjectType({
-  name: "Comment",
-  interfaces: [HasAuthor],
-  description: "Represent the type of a comment",
-  fields: () => ({
-    _id: {type: GraphQLString},
-    content: {type: GraphQLString},
-    author: {
-      type: Author,
-      resolve: function({author}) {
-        return AuthorsMap[author];
-      }
-    },
-    timestamp: {type: GraphQLFloat},
-    replies: {
-      type: new GraphQLList(Comment),
-      description: "Replies for the comment",
-      resolve: function() {
-        return ReplyList;
-      }
-    }
-  })
-});
-
 const Post = new GraphQLObjectType({
   name: "Post",
-  interfaces: [HasAuthor],
   description: "Represent the type of a blog post",
   fields: () => ({
     _id: {type: GraphQLString},
     title: {type: GraphQLString},
-    category: {type: Category},
     summary: {type: GraphQLString},
     content: {type: GraphQLString},
     timestamp: {
@@ -104,27 +46,12 @@ const Post = new GraphQLObjectType({
         }
       }
     },
-    comments: {
-      type: new GraphQLList(Comment),
-      args: {
-        limit: {type: GraphQLInt, description: "Limit the comments returing"}
-      },
-      resolve: function(post, {limit}) {
-        if(limit >= 0) {
-          return CommentList.slice(0, limit);
-        }
-
-        return CommentList;
-      }
-    },
     author: {
       type: Author,
       resolve: function({author}) {
-        return new Promise(function(resolve, reject) {
-          firebaseRef.child("authors/"+author).once("value", function(data) {
-            resolve(data.val());
-          })
-        });
+        return authorsRef.child(author).once("value").then(function(data) {
+          return data.val();
+        })
       }
     }
   })
@@ -137,44 +64,8 @@ const Query = new GraphQLObjectType({
     posts: {
       type: new GraphQLList(Post),
       description: "List of posts in the blog",
-      args: {
-        category: {type: Category}
-      },
-      resolve: function(source, {category}) {
-        return postsCollection.find().toArray();
-      }
-    },
-
-    latestPost: {
-      type: Post,
-      description: "Latest post in the blog",
       resolve: function() {
-        PostsList.sort((a, b) => {
-          var bTime = new Date(b.date['$date']).getTime();
-          var aTime = new Date(a.date['$date']).getTime();
-
-          return bTime - aTime;
-        });
-
-        return PostsList[0];
-      }
-    },
-
-    recentPosts: {
-      type: new GraphQLList(Post),
-      description: "Recent posts in the blog",
-      args: {
-        count: {type: new GraphQLNonNull(GraphQLInt), description: 'Number of recent items'}
-      },
-      resolve: function(source, {count}) {
-        PostsList.sort((a, b) => {
-          var bTime = new Date(b.date['$date']).getTime();
-          var aTime = new Date(a.date['$date']).getTime();
-
-          return bTime - aTime;
-        });
-
-        return PostsList.slice(0, count)
+        return postsCollection.find().toArray();
       }
     },
 
@@ -185,7 +76,7 @@ const Query = new GraphQLObjectType({
         _id: {type: new GraphQLNonNull(GraphQLString)}
       },
       resolve: function(source, {_id}) {
-        return _.filter(PostsList, post => post._id === _id)[0];
+        return postsCollection.findOne({_id : mongo.ObjectId(_id)});
       }
     },
 
@@ -193,7 +84,14 @@ const Query = new GraphQLObjectType({
       type: new GraphQLList(Author),
       description: "Available authors in the blog",
       resolve: function() {
-        return _.values(AuthorsMap);
+        return authorsRef.once("value").then(function(data) {
+          const authors = [];
+          _.forIn(data.val(), function (value, key) {
+            value._id = key;
+            authors.push(value);
+          });
+          return authors;
+        });
       }
     },
 
@@ -204,7 +102,9 @@ const Query = new GraphQLObjectType({
         _id: {type: new GraphQLNonNull(GraphQLString)}
       },
       resolve: function(source, {_id}) {
-        return AuthorsMap[_id];
+        return authorsRef.child(_id).once("value").then(function(data) {
+          return data.val();
+        })
       }
     }
   })
@@ -217,33 +117,21 @@ const Mutation = new GraphQLObjectType({
       type: Post,
       description: "Create a new blog post",
       args: {
-        _id: {type: new GraphQLNonNull(GraphQLString)},
         title: {type: new GraphQLNonNull(GraphQLString)},
         content: {type: new GraphQLNonNull(GraphQLString)},
         summary: {type: GraphQLString},
-        category: {type: Category},
         author: {type: new GraphQLNonNull(GraphQLString), description: "Id of the author"}
       },
       resolve: function(source, args) {
         let post = _.clone(args);
-        var alreadyExists = _.findIndex(PostsList, p => p._id === post._id) >= 0;
-        if(alreadyExists) {
-          throw new Error("Post already exists: " + post._id);
-        }
+        return authorsRef.child(post.author).once("value").then(function(data) {
+          if(!data.val()) {
+            throw new Error("Author is invalid");
+          }
+        }).then(function() {
+          return postsCollection.save(post);
+        })
 
-        if(!AuthorsMap[post.author]) {
-          throw new Error("No such author: " + post.author);
-        }
-
-        if(!post.summary) {
-          post.summary = post.content.substring(0, 100);
-        }
-
-        post.comments = [];
-        post.date = {$date: new Date().toString()}
-
-        PostsList.push(post);
-        return post;
       }
     },
 
@@ -251,18 +139,16 @@ const Mutation = new GraphQLObjectType({
       type: Author,
       description: "Create a new author",
       args: {
-        _id: {type: new GraphQLNonNull(GraphQLString)},
         name: {type: new GraphQLNonNull(GraphQLString)},
         twitterHandle: {type: GraphQLString}
       },
       resolve: function(source, args) {
-        let author = _.clone(args);
-        if(AuthorsMap[args._id]) {
-          throw new Error("Author already exists: " + author._id);
-        }
-
-        AuthorsMap[author._id] = author;
-        return author;
+        const author = _.clone(args);
+        const ref = authorsRef.push(author);
+        return ref.then(function() {
+          author._id = ref.key();
+          return author;
+        });
       }
     }
   }
