@@ -85,12 +85,7 @@ const Query = new GraphQLObjectType({
       description: "Available authors in the blog",
       resolve: function() {
         return authorsRef.once("value").then(function(data) {
-          const authors = [];
-          _.forIn(data.val(), function (value, key) {
-            value._id = key;
-            authors.push(value);
-          });
-          return authors;
+          return _.map(data.val(), (value, id) => _.assign({}, value, {_id: id}));
         });
       }
     },
@@ -103,7 +98,7 @@ const Query = new GraphQLObjectType({
       },
       resolve: function(source, {_id}) {
         return authorsRef.child(_id).once("value").then(function(data) {
-          return data.val();
+          return _.assign(data.val(), {_id});
         })
       }
     }
