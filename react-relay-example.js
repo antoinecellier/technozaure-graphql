@@ -3,26 +3,6 @@ Relay.injectNetworkLayer(
   new Relay.DefaultNetworkLayer('http://localhost:8080/graphql')
 );
 
-/* Requête GraphQL */
-const query = {
-  name: 'AppQueries',
-  queries: {
-    Post: () => Relay.QL`query{ user }`,
-  },
-};
-
-/* Conteneur Relay du composant */
-const componentContainer = Relay.createContainer(App, {
-  fragments: {
-    posts: () => Relay.QL`
-      fragment on Post {
-        title
-        category
-      }
-    `,
-  },
-});
-
 /* Déclaration du composant */
 class App extends React.Component {
   render() {
@@ -39,8 +19,22 @@ class App extends React.Component {
   }
 }
 
+/* Conteneur Relay du composant */
+const componentContainer = Relay.createContainer(App, {
+  fragments: {
+    posts: () => Relay.QL`
+      query {
+        posts {
+          title
+          category
+        }
+      }
+    `,
+  },
+});
+
 /* Conteneur Relay de l'application */
 ReactDOM.render(
-  <Relay.RootContainer Component={componentContainer} route={query} />,
+  <Relay.RootContainer Component={componentContainer} />,
   document.getElementById('root')
 )
